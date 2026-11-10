@@ -10,6 +10,29 @@ pub enum Theme {
     Dark,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Language {
+    System,
+    En,
+    Id,
+}
+
+impl Language {
+    /// Resolves `System` against the OS locale; anything other than Indonesian falls back to English.
+    pub fn resolve(self) -> Language {
+        match self {
+            Language::System => match sys_locale::get_locale() {
+                Some(locale) if locale.to_lowercase().starts_with("id") => Language::Id,
+                _ => Language::En,
+            },
+            explicit => explicit,
+        }
+    }
+}
+
+pub const DEFAULT_SHORTCUT: &str = "CommandOrControl+Alt+V";
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -23,6 +46,10 @@ pub struct Settings {
     pub capture_images: bool,
     pub theme: Theme,
     pub check_updates_on_startup: bool,
+    pub global_shortcut_enabled: bool,
+    /// Accelerator string understood by tauri-plugin-global-shortcut, e.g. `CommandOrControl+Alt+V`.
+    pub global_shortcut: String,
+    pub language: Language,
 }
 
 impl Default for Settings {
@@ -36,6 +63,9 @@ impl Default for Settings {
             capture_images: true,
             theme: Theme::System,
             check_updates_on_startup: true,
+            global_shortcut_enabled: true,
+            global_shortcut: DEFAULT_SHORTCUT.to_string(),
+            language: Language::System,
         }
     }
 }
@@ -103,6 +133,9 @@ mod tests {
             capture_images: false,
             theme: Theme::Dark,
             check_updates_on_startup: false,
+            global_shortcut_enabled: false,
+            global_shortcut: "Alt+Shift+V".to_string(),
+            language: Language::Id,
         };
 
         store.save(&settings).unwrap();

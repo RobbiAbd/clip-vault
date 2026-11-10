@@ -1,9 +1,9 @@
 use anyhow::Result;
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_autostart::ManagerExt;
 
-use crate::models::ClipboardEntryPreview;
+use crate::models::{ClipboardEntry, ClipboardEntryPreview, ContentType};
 use crate::settings::{Settings, SettingsStore};
 use crate::storage::DataStore;
 
@@ -33,6 +33,23 @@ pub fn save_settings(
             autolaunch.disable()
         };
         result.map_err(|e| format!("Failed to update launch at startup: {}", e))?;
+    }
+
+    let previous = state.settings.lock().unwrap().clone();
+    let shortcut_changed = settings.global_shortcut_enabled != previous.global_shortcut_enabled
+        || settings.global_shortcut != previous.global_shortcut;
+    if shortcut_changed {
+        if let Err(e) = crate::shortcut::apply(&app, settings.global_shortcut_enabled, &settings.global_shortcut) {
+            // Keep the old shortcut working when the new one is taken by another app.
+            let _ = crate::shortcut::apply(&app, previous.global_shortcut_enabled, &previous.global_shortcut);
+            return Err(e);
+        }
+    }
+
+    if settings.language != previous.language {
+        if let Some(tray) = app.try_state::<crate::tray::TrayMenu>() {
+            tray.set_language(settings.language);
+        }
     }
 
     state
@@ -183,8 +200,6 @@ pub fn copy_to_clipboard(content: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn copy_image_to_clipboard(base64_data: String) -> Result<(), String> {
-    use arboard::ImageData;
-    
     // Remove data URI prefix if present
     let base64_str = base64_data
         .strip_prefix("data:image/png;base64,")
@@ -193,9 +208,44 @@ pub fn copy_image_to_clipboard(base64_data: String) -> Result<(), String> {
     // Decode base64 to PNG bytes
     let png_bytes = base64_decode(base64_str)
         .map_err(|e| format!("Failed to decode base64: {}", e))?;
-    
+
+    copy_png_to_clipboard(&png_bytes)
+}
+
+/// Copies the clip and pastes it into the app that was focused before Clip-Vault opened.
+#[tauri::command]
+pub fn paste_entry(app: AppHandle, state: State<AppState>, id: i64) -> Result<(), String> {
+    let entry = state
+        .data_store
+        .lock()
+        .unwrap()
+        .get_entry(id)
+        .map_err(|e| format!("Failed to get entry: {}", e))?
+        .ok_or_else(|| "Clip not found".to_string())?;
+
+    copy_entry_to_clipboard(&entry)?;
+    crate::window::paste_into_previous_app(&app);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn hide_main_window(app: AppHandle) {
+    crate::window::hide_main(&app);
+}
+
+fn copy_entry_to_clipboard(entry: &ClipboardEntry) -> Result<(), String> {
+    match (&entry.content_type, &entry.content_text, &entry.content_blob) {
+        (ContentType::Image, _, Some(png)) => copy_png_to_clipboard(png),
+        (_, Some(text), _) => copy_to_clipboard(text.clone()),
+        _ => Err("Clip has no content to paste".to_string()),
+    }
+}
+
+fn copy_png_to_clipboard(png_bytes: &[u8]) -> Result<(), String> {
+    use arboard::ImageData;
+
     // Decode PNG to RGBA
-    let decoder = png::Decoder::new(&png_bytes[..]);
+    let decoder = png::Decoder::new(png_bytes);
     let mut reader = decoder.read_info()
         .map_err(|e| format!("Failed to read PNG: {}", e))?;
     

@@ -21,175 +21,217 @@
                 <input 
                     type="text" 
                     id="searchInput" 
-                    placeholder="Search clipboard history..." 
+                    data-i18n-placeholder="search.placeholder"
                     class="search-input"
                 />
             </div>
             <div class="header-actions">
-                <button id="refreshBtn" class="btn btn-secondary" title="Refresh">
+                <button id="refreshBtn" class="btn btn-secondary" data-i18n-title="header.refresh" data-i18n-aria-label="header.refresh">
                     🔄
                 </button>
-                <button id="clearBtn" class="btn btn-danger" title="Clear History">
+                <button id="clearBtn" class="btn btn-danger" data-i18n-title="header.clear" data-i18n-aria-label="header.clear">
                     🗑️
                 </button>
-                <button id="settingsBtn" class="btn btn-secondary" title="Settings" aria-label="Settings">
+                <button id="settingsBtn" class="btn btn-secondary" data-i18n-title="header.settings" data-i18n-aria-label="header.settings">
                     ⚙️
                 </button>
             </div>
         </header>
 
         <div id="updateBanner" class="update-banner hidden" role="status">
-            <span id="updateBannerText">A new version is available.</span>
+            <span id="updateBannerText"></span>
             <span class="update-banner-actions">
-                <button id="bannerInstallBtn" class="btn btn-primary btn-small">Update now</button>
-                <button id="bannerDismissBtn" class="btn btn-secondary btn-small">Later</button>
+                <button id="bannerInstallBtn" class="btn btn-primary btn-small" data-i18n="banner.install"></button>
+                <button id="bannerDismissBtn" class="btn btn-secondary btn-small" data-i18n="banner.later"></button>
             </span>
         </div>
 
         <div class="stats-bar">
-            <span id="statsText">Loading...</span>
+            <span id="statsText" data-i18n="stats.loading"></span>
+            <span id="keyboardHint" class="keyboard-hint hidden" data-i18n="stats.hint"></span>
         </div>
 
         <main class="content">
-            <div id="clipsList" class="clips-list">
-                <div class="loading">Loading clipboard history...</div>
+            <div id="clipsList" class="clips-list" role="listbox">
+                <div class="loading" data-i18n="list.loading"></div>
             </div>
         </main>
 
         <div id="detailPanel" class="detail-panel hidden">
             <div class="detail-header">
-                <h2>Preview</h2>
-                <button id="closeDetailBtn" class="btn btn-secondary">✕</button>
+                <h2 data-i18n="detail.title"></h2>
+                <button id="closeDetailBtn" class="btn btn-secondary" data-i18n-aria-label="detail.close">✕</button>
             </div>
             <div id="detailContent" class="detail-content">
                 <!-- Content will be loaded here -->
             </div>
             <div class="detail-actions">
-                <button id="copyDetailBtn" class="btn btn-primary">Copy</button>
-                <button id="pinDetailBtn" class="btn btn-secondary">Pin</button>
-                <button id="deleteDetailBtn" class="btn btn-danger">Delete</button>
+                <button id="copyDetailBtn" class="btn btn-primary" data-i18n="detail.copy"></button>
+                <button id="pinDetailBtn" class="btn btn-secondary" data-i18n="detail.pin"></button>
+                <button id="deleteDetailBtn" class="btn btn-danger" data-i18n="detail.delete"></button>
             </div>
         </div>
 
         <div id="settingsOverlay" class="settings-overlay hidden">
             <div class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
                 <div class="settings-header">
-                    <h2 id="settingsTitle">Settings</h2>
-                    <button id="closeSettingsBtn" class="btn btn-secondary" aria-label="Close settings">✕</button>
+                    <h2 id="settingsTitle" data-i18n="settings.title"></h2>
+                    <button id="closeSettingsBtn" class="btn btn-secondary" data-i18n-aria-label="settings.close">✕</button>
                 </div>
 
                 <div class="settings-body">
                     <section class="settings-section">
-                        <h3>General</h3>
+                        <h3 data-i18n="settings.general"></h3>
                         <label class="setting-row">
                             <span class="setting-text">
-                                <span class="setting-label">Launch at startup</span>
-                                <span class="setting-desc">Open Clip-Vault automatically when you sign in.</span>
+                                <span class="setting-label" data-i18n="settings.launch_at_startup"></span>
+                                <span class="setting-desc" data-i18n="settings.launch_at_startup_desc"></span>
                             </span>
                             <input type="checkbox" class="switch" data-setting="launch_at_startup">
                         </label>
                         <label class="setting-row">
                             <span class="setting-text">
-                                <span class="setting-label">Start minimized</span>
-                                <span class="setting-desc">Stay in the system tray instead of opening the window.</span>
+                                <span class="setting-label" data-i18n="settings.start_minimized"></span>
+                                <span class="setting-desc" data-i18n="settings.start_minimized_desc"></span>
                             </span>
                             <input type="checkbox" class="switch" data-setting="start_minimized">
                         </label>
                         <label class="setting-row">
                             <span class="setting-text">
-                                <span class="setting-label">Close to tray</span>
-                                <span class="setting-desc">Closing the window keeps clipboard monitoring running. Turn off to quit on close.</span>
+                                <span class="setting-label" data-i18n="settings.close_to_tray"></span>
+                                <span class="setting-desc" data-i18n="settings.close_to_tray_desc"></span>
                             </span>
                             <input type="checkbox" class="switch" data-setting="close_to_tray">
                         </label>
                     </section>
 
                     <section class="settings-section">
-                        <h3>History</h3>
+                        <h3 data-i18n="settings.shortcut"></h3>
                         <label class="setting-row">
                             <span class="setting-text">
-                                <span class="setting-label">Auto-delete history</span>
-                                <span class="setting-desc">Remove clips older than this. Pinned clips are always kept.</span>
+                                <span class="setting-label" data-i18n="settings.shortcut_enabled"></span>
+                                <span class="setting-desc" data-i18n="settings.shortcut_enabled_desc"></span>
+                            </span>
+                            <input type="checkbox" class="switch" data-setting="global_shortcut_enabled">
+                        </label>
+                        <label class="setting-row">
+                            <span class="setting-text">
+                                <span class="setting-label" data-i18n="settings.shortcut_key"></span>
+                                <span class="setting-desc" data-i18n="settings.shortcut_key_desc"></span>
+                            </span>
+                            <select class="setting-select" data-setting="global_shortcut" id="shortcutSelect">
+                                <option value="CommandOrControl+Alt+V">Ctrl + Alt + V</option>
+                                <option value="CommandOrControl+Shift+V">Ctrl + Shift + V</option>
+                                <option value="Alt+Shift+V">Alt + Shift + V</option>
+                                <option value="CommandOrControl+Shift+Space">Ctrl + Shift + Space</option>
+                                <option value="CommandOrControl+Alt+C">Ctrl + Alt + C</option>
+                            </select>
+                        </label>
+                    </section>
+
+                    <section class="settings-section">
+                        <h3 data-i18n="settings.history"></h3>
+                        <label class="setting-row">
+                            <span class="setting-text">
+                                <span class="setting-label" data-i18n="settings.auto_delete"></span>
+                                <span class="setting-desc" data-i18n="settings.auto_delete_desc"></span>
                             </span>
                             <select class="setting-select" data-setting="auto_delete_days" data-type="number">
-                                <option value="0">Never</option>
-                                <option value="1">After 1 day</option>
-                                <option value="7">After 7 days</option>
-                                <option value="30">After 30 days</option>
-                                <option value="90">After 90 days</option>
+                                <option value="0" data-i18n="settings.auto_delete_never"></option>
+                                <option value="1" data-i18n="settings.auto_delete_1"></option>
+                                <option value="7" data-i18n="settings.auto_delete_7"></option>
+                                <option value="30" data-i18n="settings.auto_delete_30"></option>
+                                <option value="90" data-i18n="settings.auto_delete_90"></option>
                             </select>
                         </label>
                         <label class="setting-row">
                             <span class="setting-text">
-                                <span class="setting-label">Maximum clips</span>
-                                <span class="setting-desc">Oldest unpinned clips are removed past this limit.</span>
+                                <span class="setting-label" data-i18n="settings.max_history"></span>
+                                <span class="setting-desc" data-i18n="settings.max_history_desc"></span>
                             </span>
                             <select class="setting-select" data-setting="max_history" data-type="number">
                                 <option value="100">100</option>
                                 <option value="500">500</option>
                                 <option value="1000">1,000</option>
                                 <option value="5000">5,000</option>
-                                <option value="0">Unlimited</option>
+                                <option value="0" data-i18n="settings.unlimited"></option>
                             </select>
                         </label>
                         <label class="setting-row">
                             <span class="setting-text">
-                                <span class="setting-label">Capture images</span>
-                                <span class="setting-desc">Save copied images and screenshots to history.</span>
+                                <span class="setting-label" data-i18n="settings.capture_images"></span>
+                                <span class="setting-desc" data-i18n="settings.capture_images_desc"></span>
                             </span>
                             <input type="checkbox" class="switch" data-setting="capture_images">
                         </label>
                         <div class="setting-row">
                             <span class="setting-text">
-                                <span class="setting-label">Clear history</span>
-                                <span class="setting-desc">Delete all unpinned clips now.</span>
+                                <span class="setting-label" data-i18n="settings.encryption"></span>
+                                <span class="setting-desc" data-i18n="settings.encryption_desc"></span>
                             </span>
-                            <button id="settingsClearBtn" class="btn btn-danger btn-small">Clear</button>
                         </div>
-                    </section>
-
-                    <section class="settings-section">
-                        <h3>Appearance</h3>
                         <div class="setting-row">
                             <span class="setting-text">
-                                <span class="setting-label">Theme</span>
-                                <span class="setting-desc">System follows your OS light/dark preference.</span>
+                                <span class="setting-label" data-i18n="settings.clear"></span>
+                                <span class="setting-desc" data-i18n="settings.clear_desc"></span>
                             </span>
-                            <div class="segmented" role="radiogroup" aria-label="Theme">
-                                <label><input type="radio" name="theme" value="system" data-setting="theme"><span>System</span></label>
-                                <label><input type="radio" name="theme" value="light" data-setting="theme"><span>Light</span></label>
-                                <label><input type="radio" name="theme" value="dark" data-setting="theme"><span>Dark</span></label>
-                            </div>
+                            <button id="settingsClearBtn" class="btn btn-danger btn-small" data-i18n="settings.clear_button"></button>
                         </div>
                     </section>
 
                     <section class="settings-section">
-                        <h3>About</h3>
+                        <h3 data-i18n="settings.appearance"></h3>
+                        <div class="setting-row">
+                            <span class="setting-text">
+                                <span class="setting-label" data-i18n="settings.theme"></span>
+                                <span class="setting-desc" data-i18n="settings.theme_desc"></span>
+                            </span>
+                            <div class="segmented" role="radiogroup" data-i18n-aria-label="settings.theme">
+                                <label><input type="radio" name="theme" value="system" data-setting="theme"><span data-i18n="settings.theme_system"></span></label>
+                                <label><input type="radio" name="theme" value="light" data-setting="theme"><span data-i18n="settings.theme_light"></span></label>
+                                <label><input type="radio" name="theme" value="dark" data-setting="theme"><span data-i18n="settings.theme_dark"></span></label>
+                            </div>
+                        </div>
+                        <label class="setting-row">
+                            <span class="setting-text">
+                                <span class="setting-label" data-i18n="settings.language"></span>
+                                <span class="setting-desc" data-i18n="settings.language_desc"></span>
+                            </span>
+                            <select class="setting-select" data-setting="language">
+                                <option value="system" data-i18n="settings.language_system"></option>
+                                <option value="en">English</option>
+                                <option value="id">Bahasa Indonesia</option>
+                            </select>
+                        </label>
+                    </section>
+
+                    <section class="settings-section">
+                        <h3 data-i18n="settings.about"></h3>
                         <div class="about-card">
                             <img src="logo.svg" alt="" class="about-logo">
                             <div class="setting-text">
                                 <span class="setting-label">Clip-Vault</span>
-                                <span class="setting-desc">Version <span id="appVersion">–</span> · Clipboard manager built with Rust and Tauri</span>
+                                <span class="setting-desc" id="aboutVersion"></span>
                                 <a class="about-link" href="https://github.com/RobbiAbd/clip-vault" target="_blank" rel="noopener">github.com/RobbiAbd/clip-vault</a>
                             </div>
                         </div>
                         <div class="setting-row">
                             <span class="setting-text">
-                                <span class="setting-label">Updates</span>
-                                <span class="setting-desc" id="updateStatus" aria-live="polite">Check whether a newer version is available.</span>
+                                <span class="setting-label" data-i18n="update.label"></span>
+                                <span class="setting-desc" id="updateStatus" aria-live="polite"></span>
                             </span>
                             <span class="update-actions">
-                                <button id="checkUpdateBtn" class="btn btn-secondary btn-small">Check for updates</button>
-                                <button id="installUpdateBtn" class="btn btn-primary btn-small hidden">Download &amp; install</button>
+                                <button id="checkUpdateBtn" class="btn btn-secondary btn-small" data-i18n="update.check"></button>
+                                <button id="installUpdateBtn" class="btn btn-primary btn-small hidden" data-i18n="update.install"></button>
                             </span>
                         </div>
-                        <div id="updateProgress" class="update-progress hidden" role="progressbar" aria-label="Update download" aria-valuemin="0" aria-valuemax="100">
+                        <div id="updateProgress" class="update-progress hidden" role="progressbar" data-i18n-aria-label="update.progress_label" aria-valuemin="0" aria-valuemax="100">
                             <div id="updateProgressBar" class="update-progress-bar"></div>
                         </div>
                         <label class="setting-row">
                             <span class="setting-text">
-                                <span class="setting-label">Check for updates on startup</span>
-                                <span class="setting-desc">Show a notice when a new version is released.</span>
+                                <span class="setting-label" data-i18n="update.on_startup"></span>
+                                <span class="setting-desc" data-i18n="update.on_startup_desc"></span>
                             </span>
                             <input type="checkbox" class="switch" data-setting="check_updates_on_startup">
                         </label>

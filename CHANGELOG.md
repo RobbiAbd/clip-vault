@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-10
+
+### Added
+- ⌨️ **Global shortcut** (default `Ctrl + Alt + V`) opens Clip-Vault from any app; pick a clip with ↑ ↓ and press Enter to paste it straight into the previous app. Can be turned off or changed in Settings
+- 🔒 **Encrypted history**: clips, images and thumbnails are encrypted with AES-256-GCM; the key is kept in Windows Credential Manager / macOS Keychain. Existing history is encrypted automatically on first start
+- 🌐 **Language setting**: English and Bahasa Indonesia (or follow the system language), including the tray menu
+
 ## [0.2.1] - 2026-11-10
 
 ### Added

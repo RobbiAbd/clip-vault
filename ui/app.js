@@ -1,3 +1,5 @@
+import { t, setLanguage, getLocale, applyTranslations } from './i18n.js';
+
 // Tauri v2 API - Proper initialization with error handling
 let invoke, listen;
 
@@ -30,53 +32,66 @@ function initTauriAPIs() {
 }
 
 let currentClips = [];
+let displayedClips = [];
 let selectedClipId = null;
+let keyboardSelectedId = null;
 let searchTimeout = null;
+let lastClipCount = null;
+// True while the window was opened by the global shortcut: Enter pastes into the previous app.
+let pasteMode = false;
 
 async function loadHistory() {
     try {
-        console.log('Loading history...');
         const clips = await invoke('get_history', { limit: 100, offset: 0 });
-        console.log('Loaded clips:', clips);
         currentClips = clips;
-        renderClips(clips);
+        if (!document.getElementById('searchInput').value.trim()) {
+            renderClips(clips);
+        }
         await updateStats();
     } catch (error) {
         console.error('Failed to load history:', error);
-        document.getElementById('clipsList').innerHTML = 
-            `<div class="empty-state">Failed to load clipboard history: ${error}</div>`;
+        document.getElementById('clipsList').innerHTML =
+            `<div class="empty-state">${escapeHtml(t('list.failed', { error }))}</div>`;
     }
 }
 
 function renderClips(clips) {
+    displayedClips = clips;
     const container = document.getElementById('clipsList');
-    
+
     if (clips.length === 0) {
-        container.innerHTML = '<div class="empty-state">No clipboard history yet. Copy something to get started!</div>';
+        const searching = document.getElementById('searchInput').value.trim();
+        container.innerHTML = `<div class="empty-state">${escapeHtml(t(searching ? 'list.no_results' : 'list.empty'))}</div>`;
+        keyboardSelectedId = null;
         return;
     }
 
+    if (!clips.some(c => c.id === keyboardSelectedId)) {
+        keyboardSelectedId = pasteMode ? clips[0].id : null;
+    }
+
     container.innerHTML = clips.map(clip => `
-        <div class="clip-item ${clip.pinned ? 'pinned' : ''}" data-id="${clip.id}">
+        <div class="clip-item ${clip.pinned ? 'pinned' : ''} ${clip.id === keyboardSelectedId ? 'selected' : ''}"
+             data-id="${clip.id}" role="option" aria-selected="${clip.id === keyboardSelectedId}">
             <div class="clip-header">
                 <div class="clip-meta">
-                    <span class="clip-type">${formatContentType(clip.content_type)}</span>
-                    ${clip.pinned ? '<span class="clip-pin-badge">📌 Pinned</span>' : ''}
-                    ${clip.app_source ? `<span>from ${clip.app_source}</span>` : ''}
+                    <span class="clip-type">${escapeHtml(formatContentType(clip.content_type))}</span>
+                    ${clip.pinned ? `<span class="clip-pin-badge">${escapeHtml(t('clip.pinned'))}</span>` : ''}
+                    ${clip.app_source ? `<span>${escapeHtml(t('clip.from', { app: clip.app_source }))}</span>` : ''}
                 </div>
                 <div class="clip-actions">
-                    <button class="btn btn-icon btn-secondary copy-btn" data-id="${clip.id}" title="Copy">
+                    <button class="btn btn-icon btn-secondary copy-btn" data-id="${clip.id}" title="${escapeHtml(t('clip.copy'))}" aria-label="${escapeHtml(t('clip.copy'))}">
                         📋
                     </button>
-                    <button class="btn btn-icon btn-danger delete-btn" data-id="${clip.id}" title="Delete">
+                    <button class="btn btn-icon btn-danger delete-btn" data-id="${clip.id}" title="${escapeHtml(t('clip.delete'))}" aria-label="${escapeHtml(t('clip.delete'))}">
                         🗑️
                     </button>
                 </div>
             </div>
             ${clip.thumbnail
-                ? `<img class="clip-thumb" src="${clip.thumbnail}" alt="Clipboard image" loading="lazy" />`
+                ? `<img class="clip-thumb" src="${clip.thumbnail}" alt="${escapeHtml(t('clip.image_alt'))}" loading="lazy" />`
                 : `<div class="clip-preview">${escapeHtml(clip.preview)}</div>`}
-            <div class="clip-timestamp">${formatTimestamp(clip.timestamp)}</div>
+            <div class="clip-timestamp">${escapeHtml(formatTimestamp(clip.timestamp))}</div>
         </div>
     `).join('');
 
@@ -84,6 +99,11 @@ function renderClips(clips) {
         item.addEventListener('click', (e) => {
             if (!e.target.closest('.clip-actions')) {
                 showDetail(parseInt(item.dataset.id));
+            }
+        });
+        item.addEventListener('dblclick', (e) => {
+            if (!e.target.closest('.clip-actions')) {
+                activateClip(parseInt(item.dataset.id));
             }
         });
     });
@@ -103,35 +123,64 @@ function renderClips(clips) {
     });
 }
 
+function moveSelection(delta) {
+    if (displayedClips.length === 0) return;
+    const current = displayedClips.findIndex(c => c.id === keyboardSelectedId);
+    const next = current === -1
+        ? (delta > 0 ? 0 : displayedClips.length - 1)
+        : Math.min(displayedClips.length - 1, Math.max(0, current + delta));
+    keyboardSelectedId = displayedClips[next].id;
+
+    document.querySelectorAll('.clip-item').forEach(item => {
+        const selected = parseInt(item.dataset.id) === keyboardSelectedId;
+        item.classList.toggle('selected', selected);
+        item.setAttribute('aria-selected', String(selected));
+        if (selected) item.scrollIntoView({ block: 'nearest' });
+    });
+}
+
+function activateClip(id) {
+    return pasteMode ? pasteClip(id) : copyClip(id);
+}
+
+async function pasteClip(id) {
+    try {
+        await invoke('paste_entry', { id });
+    } catch (error) {
+        console.error('Failed to paste:', error);
+        showNotification(t('notify.paste_failed', { error }), 'error');
+    }
+}
+
 async function showDetail(id) {
     selectedClipId = id;
     const panel = document.getElementById('detailPanel');
     const content = document.getElementById('detailContent');
-    
+
     try {
         const fullContent = await invoke('get_entry', { id });
-        
+
         if (fullContent) {
             if (fullContent.startsWith('data:image')) {
-                content.innerHTML = `<img src="${fullContent}" alt="Clipboard image" />`;
+                content.innerHTML = `<img src="${fullContent}" alt="${escapeHtml(t('clip.image_alt'))}" />`;
             } else {
                 content.textContent = fullContent;
             }
         } else {
-            content.textContent = 'No content available';
+            content.textContent = t('detail.empty');
         }
-        
-        const clip = currentClips.find(c => c.id === id);
-        const pinBtn = document.getElementById('pinDetailBtn');
-        if (clip) {
-            pinBtn.textContent = clip.pinned ? 'Unpin' : 'Pin';
-        }
-        
+
+        renderPinButton();
         panel.classList.remove('hidden');
     } catch (error) {
         console.error('Failed to load detail:', error);
-        content.textContent = 'Failed to load content';
+        content.textContent = t('detail.failed');
     }
+}
+
+function renderPinButton() {
+    const clip = currentClips.find(c => c.id === selectedClipId);
+    document.getElementById('pinDetailBtn').textContent = t(clip && clip.pinned ? 'detail.unpin' : 'detail.pin');
 }
 
 function hideDetail() {
@@ -146,27 +195,22 @@ async function copyClip(id) {
             console.warn('No content to copy');
             return;
         }
-        
-        // Handle image content
+
         if (content.startsWith('data:image')) {
             await invoke('copy_image_to_clipboard', { base64Data: content });
-            console.log('✅ Image copied to clipboard');
-            showNotification('Image copied!', 'success');
-        } 
-        // Handle text content
-        else {
+            showNotification(t('notify.image_copied'), 'success');
+        } else {
             await invoke('copy_to_clipboard', { content });
-            console.log('✅ Text copied to clipboard');
-            showNotification('Text copied!', 'success');
+            showNotification(t('notify.text_copied'), 'success');
         }
     } catch (error) {
         console.error('Failed to copy:', error);
-        showNotification('Failed to copy: ' + error, 'error');
+        showNotification(t('notify.copy_failed', { error }), 'error');
     }
 }
 
 async function deleteClip(id) {
-    if (confirm('Are you sure you want to delete this clip?')) {
+    if (confirm(t('confirm.delete'))) {
         try {
             await invoke('delete_entry', { id });
             if (selectedClipId === id) {
@@ -192,7 +236,7 @@ async function togglePin(id) {
 }
 
 async function clearHistory() {
-    if (confirm('Clear all clipboard history? Pinned items will be kept.')) {
+    if (confirm(t('confirm.clear'))) {
         try {
             await invoke('clear_history', { keepPinned: true });
             hideDetail();
@@ -204,18 +248,12 @@ async function clearHistory() {
 }
 
 function showNotification(message, type = 'info') {
-    // Create notification element
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
     notification.textContent = message;
-    
-    // Add to body
     document.body.appendChild(notification);
-    
-    // Trigger animation
+
     setTimeout(() => notification.classList.add('show'), 10);
-    
-    // Auto remove after 2 seconds
     setTimeout(() => {
         notification.classList.remove('show');
         setTimeout(() => notification.remove(), 300);
@@ -224,11 +262,27 @@ function showNotification(message, type = 'info') {
 
 let currentSettings = null;
 const darkSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+const SHORTCUT_SETTINGS = ['global_shortcut_enabled', 'global_shortcut'];
 
 function applyTheme(pref) {
     const dark = pref === 'dark' || (pref === 'system' && darkSchemeQuery.matches);
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     localStorage.setItem('clipvault-theme', pref);
+}
+
+function applyLanguage(pref) {
+    setLanguage(pref);
+    refreshDynamicText();
+}
+
+// Re-renders text that is built in JS rather than bound through data-i18n attributes.
+function refreshDynamicText() {
+    renderClips(displayedClips);
+    if (lastClipCount !== null) renderStats(lastClipCount);
+    renderAboutVersion();
+    renderUpdateStatus();
+    renderBanner();
+    if (selectedClipId !== null) renderPinButton();
 }
 
 function renderSettings(settings) {
@@ -242,6 +296,7 @@ function renderSettings(settings) {
             input.value = String(value);
         }
     });
+    document.getElementById('shortcutSelect').disabled = !settings.global_shortcut_enabled;
 }
 
 function readSettingInput(input) {
@@ -255,6 +310,7 @@ async function loadSettings() {
         currentSettings = await invoke('get_settings');
         renderSettings(currentSettings);
         applyTheme(currentSettings.theme);
+        applyLanguage(currentSettings.language);
     } catch (error) {
         console.error('Failed to load settings:', error);
     }
@@ -265,13 +321,15 @@ async function updateSetting(key, value) {
     const next = { ...currentSettings, [key]: value };
     try {
         currentSettings = await invoke('save_settings', { settings: next });
+        renderSettings(currentSettings);
         if (key === 'theme') applyTheme(value);
-        showNotification('Settings saved', 'success');
+        if (key === 'language') applyLanguage(value);
+        showNotification(t('notify.settings_saved'), 'success');
     } catch (error) {
         console.error('Failed to save settings:', error);
         currentSettings = previous;
         renderSettings(previous);
-        showNotification(String(error), 'error');
+        showNotification(SHORTCUT_SETTINGS.includes(key) ? t('notify.shortcut_failed') : String(error), 'error');
     }
 }
 
@@ -281,14 +339,14 @@ function openSettings() {
     document.getElementById('closeSettingsBtn').focus();
 }
 
-function closeSettings() {
+function closeSettings({ restoreFocus = true } = {}) {
     document.getElementById('settingsOverlay').classList.add('hidden');
-    document.getElementById('settingsBtn').focus();
+    if (restoreFocus) document.getElementById('settingsBtn').focus();
 }
 
 function setupSettings() {
     document.getElementById('settingsBtn').addEventListener('click', openSettings);
-    document.getElementById('closeSettingsBtn').addEventListener('click', closeSettings);
+    document.getElementById('closeSettingsBtn').addEventListener('click', () => closeSettings());
     document.getElementById('settingsClearBtn').addEventListener('click', clearHistory);
 
     const overlay = document.getElementById('settingsOverlay');
@@ -296,7 +354,10 @@ function setupSettings() {
         if (e.target === overlay) closeSettings();
     });
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !overlay.classList.contains('hidden')) closeSettings();
+        if (e.key === 'Escape' && !overlay.classList.contains('hidden')) {
+            e.preventDefault();
+            closeSettings();
+        }
     });
 
     document.querySelectorAll('[data-setting]').forEach(input => {
@@ -310,22 +371,87 @@ function setupSettings() {
     });
 }
 
-let updateInProgress = false;
+function setupKeyboard() {
+    const overlay = document.getElementById('settingsOverlay');
 
-function setUpdateStatus(text) {
-    document.getElementById('updateStatus').textContent = text;
+    document.addEventListener('keydown', (e) => {
+        if (e.defaultPrevented || !overlay.classList.contains('hidden')) return;
+
+        switch (e.key) {
+            case 'ArrowDown':
+            case 'ArrowUp':
+                e.preventDefault();
+                moveSelection(e.key === 'ArrowDown' ? 1 : -1);
+                break;
+            case 'Enter':
+                if (e.target.tagName === 'BUTTON' || keyboardSelectedId === null) return;
+                e.preventDefault();
+                activateClip(keyboardSelectedId);
+                break;
+            case 'Escape':
+                e.preventDefault();
+                if (!document.getElementById('detailPanel').classList.contains('hidden')) {
+                    hideDetail();
+                } else if (pasteMode) {
+                    invoke('hide_main_window');
+                }
+                break;
+        }
+    });
+
+    if (listen) {
+        listen('window-shown', (event) => {
+            pasteMode = event.payload === true;
+            document.getElementById('keyboardHint').classList.toggle('hidden', !pasteMode);
+            if (!pasteMode) return;
+
+            closeSettings({ restoreFocus: false });
+            hideDetail();
+            const search = document.getElementById('searchInput');
+            search.value = '';
+            keyboardSelectedId = null;
+            renderClips(currentClips);
+            search.focus();
+        }).catch(err => console.error('Failed to listen for window events:', err));
+    }
+}
+
+let updateInProgress = false;
+let updateStatus = { key: 'update.idle', vars: {} };
+let availableVersion = null;
+let appVersion = null;
+
+function setUpdateStatus(key, vars = {}) {
+    updateStatus = { key, vars };
+    renderUpdateStatus();
+}
+
+function renderUpdateStatus() {
+    document.getElementById('updateStatus').textContent = t(updateStatus.key, updateStatus.vars);
+}
+
+function renderBanner() {
+    if (availableVersion) {
+        document.getElementById('updateBannerText').textContent = t('banner.available', { version: availableVersion });
+    }
+}
+
+function renderAboutVersion() {
+    document.getElementById('aboutVersion').textContent = t('about.version', { version: appVersion ?? '–' });
 }
 
 function showAvailableUpdate(version) {
-    setUpdateStatus(`Version ${version} is available.`);
+    availableVersion = version;
+    setUpdateStatus('update.available', { version });
     document.getElementById('installUpdateBtn').classList.remove('hidden');
-    document.getElementById('updateBannerText').textContent = `Clip-Vault ${version} is available.`;
+    renderBanner();
     document.getElementById('updateBanner').classList.remove('hidden');
 }
 
 async function loadAppVersion() {
     try {
-        document.getElementById('appVersion').textContent = await invoke('get_app_version');
+        appVersion = await invoke('get_app_version');
+        renderAboutVersion();
     } catch (error) {
         console.error('Failed to get app version:', error);
     }
@@ -334,18 +460,18 @@ async function loadAppVersion() {
 async function checkForUpdates() {
     const checkBtn = document.getElementById('checkUpdateBtn');
     checkBtn.disabled = true;
-    setUpdateStatus('Checking for updates…');
+    setUpdateStatus('update.checking');
     try {
         const info = await invoke('check_update');
         if (info.available) {
             showAvailableUpdate(info.latest_version);
         } else {
-            setUpdateStatus(`You're on the latest version (${info.current_version}).`);
+            setUpdateStatus('update.latest', { version: info.current_version });
             document.getElementById('installUpdateBtn').classList.add('hidden');
         }
     } catch (error) {
         console.error('Update check failed:', error);
-        setUpdateStatus('Could not check for updates. Check your internet connection and try again.');
+        setUpdateStatus('update.check_failed');
     } finally {
         checkBtn.disabled = false;
     }
@@ -360,14 +486,14 @@ async function installUpdate() {
     document.getElementById('updateBanner').classList.add('hidden');
     openSettings();
     document.getElementById('updateProgress').classList.remove('hidden');
-    setUpdateStatus('Downloading update…');
+    setUpdateStatus('update.downloading');
 
     try {
         // The app closes and restarts itself once the installer runs.
         await invoke('install_update');
     } catch (error) {
         console.error('Update install failed:', error);
-        setUpdateStatus(`Update failed: ${error}`);
+        setUpdateStatus('update.failed', { error: String(error) });
         document.getElementById('updateProgress').classList.add('hidden');
         buttons.forEach(btn => { btn.disabled = false; });
         updateInProgress = false;
@@ -383,11 +509,13 @@ function renderUpdateProgress({ downloaded, total }) {
         const percent = Math.min(100, Math.round((downloaded / total) * 100));
         bar.style.width = `${percent}%`;
         progress.setAttribute('aria-valuenow', String(percent));
-        setUpdateStatus(percent < 100
-            ? `Downloading update… ${percent}% (${mb(downloaded)} of ${mb(total)} MB)`
-            : 'Installing update. Clip-Vault will restart…');
+        if (percent < 100) {
+            setUpdateStatus('update.downloading_pct', { percent, done: mb(downloaded), total: mb(total) });
+        } else {
+            setUpdateStatus('update.installing');
+        }
     } else {
-        setUpdateStatus(`Downloading update… ${mb(downloaded)} MB`);
+        setUpdateStatus('update.downloading_mb', { done: mb(downloaded) });
     }
 }
 
@@ -413,6 +541,7 @@ function setupUpdates() {
             .catch(err => console.error('Failed to listen for update progress:', err));
     }
 
+    renderUpdateStatus();
     loadAppVersion();
 }
 
@@ -433,37 +562,34 @@ async function searchClips(query) {
 async function updateStats() {
     try {
         const stats = await invoke('get_stats');
-        document.getElementById('statsText').textContent = 
-            `${stats.total_clips} clips in history`;
+        renderStats(stats.total_clips);
     } catch (error) {
         console.error('Failed to get stats:', error);
     }
 }
 
+function renderStats(count) {
+    lastClipCount = count;
+    document.getElementById('statsText').textContent = t('stats.count', { n: count });
+}
+
 function formatContentType(type) {
-    const types = {
-        'Text': '📝 Text',
-        'RichText': '📄 Rich Text',
-        'Image': '🖼️ Image',
-        'Files': '📁 Files',
-    };
-    return types[type] || type;
+    const key = `type.${type}`;
+    const label = t(key);
+    return label === key ? type : label;
 }
 
 function formatTimestamp(timestamp) {
     const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+    const diffSeconds = Math.round((date - new Date()) / 1000);
+    const rtf = new Intl.RelativeTimeFormat(getLocale(), { numeric: 'auto' });
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-    
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+    if (diffSeconds > -60) return rtf.format(0, 'second');
+    if (diffSeconds > -3600) return rtf.format(Math.round(diffSeconds / 60), 'minute');
+    if (diffSeconds > -86400) return rtf.format(Math.round(diffSeconds / 3600), 'hour');
+    if (diffSeconds > -604800) return rtf.format(Math.round(diffSeconds / 86400), 'day');
+
+    return date.toLocaleString(getLocale());
 }
 
 function escapeHtml(text) {
@@ -474,24 +600,21 @@ function escapeHtml(text) {
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM loaded, initializing Tauri APIs...');
-    
-    // Initialize Tauri APIs
+    applyTranslations();
+
     const initialized = initTauriAPIs();
-    
+
     if (!initialized) {
-        document.getElementById('clipsList').innerHTML = 
+        document.getElementById('clipsList').innerHTML =
             '<div class="empty-state">Error: Failed to initialize Tauri APIs. Please restart the app.</div>';
         return;
     }
-    
-    // Load initial data
-    loadHistory();
-    loadSettings();
+
+    loadSettings().then(loadHistory);
     setupSettings();
+    setupKeyboard();
     setupUpdates();
 
-    // Setup event listeners
     document.getElementById('searchInput').addEventListener('input', (e) => {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
@@ -502,15 +625,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('refreshBtn').addEventListener('click', loadHistory);
     document.getElementById('clearBtn').addEventListener('click', clearHistory);
     document.getElementById('closeDetailBtn').addEventListener('click', hideDetail);
-    
+
     document.getElementById('copyDetailBtn').addEventListener('click', () => {
         if (selectedClipId) copyClip(selectedClipId);
     });
-    
+
     document.getElementById('pinDetailBtn').addEventListener('click', () => {
         if (selectedClipId) togglePin(selectedClipId);
     });
-    
+
     document.getElementById('deleteDetailBtn').addEventListener('click', () => {
         if (selectedClipId) deleteClip(selectedClipId);
     });

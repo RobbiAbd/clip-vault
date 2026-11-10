@@ -3,20 +3,20 @@
 
 mod clipboard;
 mod commands;
+mod crypto;
+mod keystore;
 mod models;
 mod settings;
+mod shortcut;
 mod storage;
 mod thumbnail;
+mod tray;
+mod window;
 
-use anyhow::Result;
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
-use tauri::{
-    Manager, WindowEvent, Emitter,
-    menu::{Menu, MenuItem},
-    tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
-};
+use tauri::{Emitter, Manager, WindowEvent};
 
 use clipboard::ClipboardManager;
 use commands::AppState;
@@ -36,6 +36,7 @@ fn main() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
+        .plugin(shortcut::plugin())
         .setup(|app| {
             let app_dir = app.path().app_data_dir().unwrap();
             std::fs::create_dir_all(&app_dir)?;
@@ -43,7 +44,8 @@ fn main() {
             let db_path = app_dir.join("clipboard.db");
             log::info!("Database path: {:?}", db_path);
 
-            let data_store = DataStore::new(db_path)?;
+            let key = keystore::load_or_create_key(&app_dir)?;
+            let data_store = DataStore::new(db_path, &key)?;
 
             let settings_store = SettingsStore::new(app_dir.join("settings.json"));
             let mut settings = settings_store.load();
@@ -54,14 +56,17 @@ fn main() {
                 log::error!("Startup retention failed: {}", e);
             }
 
-            if let Some(window) = app.get_webview_window("main") {
-                if !settings.start_minimized {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
+            if !settings.start_minimized {
+                window::show_main(app.handle(), false);
             }
 
             let check_updates_on_startup = settings.check_updates_on_startup;
+            let language = settings.language;
+
+            // A shortcut taken by another app must not block startup; the user can pick another in Settings.
+            if let Err(e) = shortcut::apply(app.handle(), settings.global_shortcut_enabled, &settings.global_shortcut) {
+                log::warn!("{}", e);
+            }
 
             app.manage(AppState {
                 data_store: Mutex::new(data_store),
@@ -69,8 +74,7 @@ fn main() {
                 settings_store,
             });
 
-            // Setup tray icon
-            setup_tray(app)?;
+            tray::setup(app, language)?;
 
             let app_handle = app.handle().clone();
             start_clipboard_monitor(app_handle.clone());
@@ -109,52 +113,11 @@ fn main() {
             commands::get_app_version,
             commands::check_update,
             commands::install_update,
+            commands::paste_entry,
+            commands::hide_main_window,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-}
-
-fn setup_tray(app: &mut tauri::App) -> Result<()> {
-    let show = MenuItem::with_id(app, "show", "Show Clip-Vault", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    
-    let menu = Menu::with_items(app, &[&show, &quit])?;
-    
-    let _tray = TrayIconBuilder::new()
-        .menu(&menu)
-        .icon(app.default_window_icon().unwrap().clone())
-        .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click { button, button_state, .. } = event {
-                if button == MouseButton::Left && button_state == MouseButtonState::Up {
-                    let app = tray.app_handle();
-                    if let Some(window) = app.get_webview_window("main") {
-                        if window.is_visible().unwrap_or(false) {
-                            let _ = window.hide();
-                        } else {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
-                }
-            }
-        })
-        .on_menu_event(|app, event| {
-            match event.id.as_ref() {
-                "show" => {
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
-                }
-                "quit" => {
-                    std::process::exit(0);
-                }
-                _ => {}
-            }
-        })
-        .build(app)?;
-
-    Ok(())
 }
 
 fn start_clipboard_monitor(app_handle: tauri::AppHandle) {
