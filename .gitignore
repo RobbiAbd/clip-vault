@@ -1,0 +1,39 @@
+# Rust
+/target
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# Tauri
+/ui/dist
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+
+# Build artifacts
+*.msi
+*.deb
+*.dmg
+*.AppImage
+*.exe
+!target/release/clip-vault.exe
+
+# Temporary
+tmp/
+temp/
