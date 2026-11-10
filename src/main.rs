@@ -26,6 +26,7 @@ use storage::DataStore;
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 const RETENTION_INTERVAL: Duration = Duration::from_secs(60 * 60);
+const UPDATE_CHECK_DELAY: Duration = Duration::from_secs(5);
 
 fn main() {
     env_logger::init();
@@ -60,6 +61,8 @@ fn main() {
                 }
             }
 
+            let check_updates_on_startup = settings.check_updates_on_startup;
+
             app.manage(AppState {
                 data_store: Mutex::new(data_store),
                 settings: Mutex::new(settings),
@@ -73,13 +76,9 @@ fn main() {
             start_clipboard_monitor(app_handle.clone());
             start_retention_timer(app_handle.clone());
 
-            // TODO: Re-enable auto-updater once API is verified
-            // Check for updates on startup (in background)
-            // let update_handle = app_handle.clone();
-            // tauri::async_runtime::spawn(async move {
-            //     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-            //     check_for_updates_on_startup(update_handle).await;
-            // });
+            if check_updates_on_startup {
+                tauri::async_runtime::spawn(check_for_updates_on_startup(app_handle.clone()));
+            }
 
             Ok(())
         })
@@ -107,9 +106,9 @@ fn main() {
             commands::copy_image_to_clipboard,
             commands::get_settings,
             commands::save_settings,
-            // TODO: Re-enable after fixing updater API
-            // commands::check_update,
-            // commands::install_update,
+            commands::get_app_version,
+            commands::check_update,
+            commands::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -223,24 +222,26 @@ fn start_retention_timer(app_handle: tauri::AppHandle) {
     });
 }
 
-// TODO: Fix auto-updater API for Tauri v2
-// async fn check_for_updates_on_startup(app_handle: tauri::AppHandle) {
-//     use tauri_plugin_updater::UpdaterExt;
-//     
-//     log::info!("Checking for updates...");
-//     
-//     match app_handle.updater().check().await {
-//         Ok(Some(update)) => {
-//             log::info!("Update available: {}", update.version);
-//             
-//             // Emit event to frontend to show update notification
-//             let _ = app_handle.emit("update-available", &update.version);
-//         }
-//         Ok(None) => {
-//             log::info!("App is up to date");
-//         }
-//         Err(e) => {
-//             log::warn!("Failed to check for updates: {}", e);
-//         }
-//     }
-// }
+async fn check_for_updates_on_startup(app_handle: tauri::AppHandle) {
+    use tauri_plugin_updater::UpdaterExt;
+
+    // Give the frontend time to register its listener before emitting.
+    tokio::time::sleep(UPDATE_CHECK_DELAY).await;
+
+    let updater = match app_handle.updater() {
+        Ok(updater) => updater,
+        Err(e) => {
+            log::warn!("Updater unavailable: {}", e);
+            return;
+        }
+    };
+
+    match updater.check().await {
+        Ok(Some(update)) => {
+            log::info!("Update available: {}", update.version);
+            let _ = app_handle.emit("update-available", update.version);
+        }
+        Ok(None) => log::info!("App is up to date"),
+        Err(e) => log::warn!("Failed to check for updates: {}", e),
+    }
+}

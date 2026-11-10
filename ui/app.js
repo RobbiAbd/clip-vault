@@ -310,6 +310,112 @@ function setupSettings() {
     });
 }
 
+let updateInProgress = false;
+
+function setUpdateStatus(text) {
+    document.getElementById('updateStatus').textContent = text;
+}
+
+function showAvailableUpdate(version) {
+    setUpdateStatus(`Version ${version} is available.`);
+    document.getElementById('installUpdateBtn').classList.remove('hidden');
+    document.getElementById('updateBannerText').textContent = `Clip-Vault ${version} is available.`;
+    document.getElementById('updateBanner').classList.remove('hidden');
+}
+
+async function loadAppVersion() {
+    try {
+        document.getElementById('appVersion').textContent = await invoke('get_app_version');
+    } catch (error) {
+        console.error('Failed to get app version:', error);
+    }
+}
+
+async function checkForUpdates() {
+    const checkBtn = document.getElementById('checkUpdateBtn');
+    checkBtn.disabled = true;
+    setUpdateStatus('Checking for updates…');
+    try {
+        const info = await invoke('check_update');
+        if (info.available) {
+            showAvailableUpdate(info.latest_version);
+        } else {
+            setUpdateStatus(`You're on the latest version (${info.current_version}).`);
+            document.getElementById('installUpdateBtn').classList.add('hidden');
+        }
+    } catch (error) {
+        console.error('Update check failed:', error);
+        setUpdateStatus('Could not check for updates. Check your internet connection and try again.');
+    } finally {
+        checkBtn.disabled = false;
+    }
+}
+
+async function installUpdate() {
+    if (updateInProgress) return;
+    updateInProgress = true;
+
+    const buttons = ['checkUpdateBtn', 'installUpdateBtn', 'bannerInstallBtn'].map(id => document.getElementById(id));
+    buttons.forEach(btn => { btn.disabled = true; });
+    document.getElementById('updateBanner').classList.add('hidden');
+    openSettings();
+    document.getElementById('updateProgress').classList.remove('hidden');
+    setUpdateStatus('Downloading update…');
+
+    try {
+        // The app closes and restarts itself once the installer runs.
+        await invoke('install_update');
+    } catch (error) {
+        console.error('Update install failed:', error);
+        setUpdateStatus(`Update failed: ${error}`);
+        document.getElementById('updateProgress').classList.add('hidden');
+        buttons.forEach(btn => { btn.disabled = false; });
+        updateInProgress = false;
+    }
+}
+
+function renderUpdateProgress({ downloaded, total }) {
+    const bar = document.getElementById('updateProgressBar');
+    const progress = document.getElementById('updateProgress');
+    const mb = (bytes) => (bytes / 1048576).toFixed(1);
+
+    if (total) {
+        const percent = Math.min(100, Math.round((downloaded / total) * 100));
+        bar.style.width = `${percent}%`;
+        progress.setAttribute('aria-valuenow', String(percent));
+        setUpdateStatus(percent < 100
+            ? `Downloading update… ${percent}% (${mb(downloaded)} of ${mb(total)} MB)`
+            : 'Installing update. Clip-Vault will restart…');
+    } else {
+        setUpdateStatus(`Downloading update… ${mb(downloaded)} MB`);
+    }
+}
+
+function setupUpdates() {
+    document.getElementById('checkUpdateBtn').addEventListener('click', checkForUpdates);
+    document.getElementById('installUpdateBtn').addEventListener('click', installUpdate);
+    document.getElementById('bannerInstallBtn').addEventListener('click', installUpdate);
+    document.getElementById('bannerDismissBtn').addEventListener('click', () => {
+        document.getElementById('updateBanner').classList.add('hidden');
+    });
+
+    document.querySelector('.about-link').addEventListener('click', (e) => {
+        e.preventDefault();
+        if (window.__TAURI__ && window.__TAURI__.shell) {
+            window.__TAURI__.shell.open(e.currentTarget.href);
+        }
+    });
+
+    if (listen) {
+        listen('update-available', (event) => showAvailableUpdate(event.payload))
+            .catch(err => console.error('Failed to listen for updates:', err));
+        listen('update-progress', (event) => renderUpdateProgress(event.payload))
+            .catch(err => console.error('Failed to listen for update progress:', err));
+    }
+
+    loadAppVersion();
+}
+
 async function searchClips(query) {
     if (!query.trim()) {
         renderClips(currentClips);
@@ -383,6 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadHistory();
     loadSettings();
     setupSettings();
+    setupUpdates();
 
     // Setup event listeners
     document.getElementById('searchInput').addEventListener('input', (e) => {

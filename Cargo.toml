@@ -1,6 +1,6 @@
 [package]
 name = "clip-vault"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 authors = ["Clip-Vault Contributors"]
 description = "A cross-platform clipboard manager built with Rust"

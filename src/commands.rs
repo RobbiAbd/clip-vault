@@ -242,72 +242,80 @@ fn base64_decode(data: &str) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("Base64 decode error: {}", e))
 }
 
-// TODO: Fix auto-updater commands for Tauri v2
-// Auto-update commands  
-// #[tauri::command]
-// pub async fn check_update(app_handle: tauri::AppHandle) -> Result<UpdateInfo, String> {
-//     use tauri_plugin_updater::UpdaterExt;
-//     
-//     match app_handle.updater().check().await {
-//         Ok(Some(update)) => {
-//             Ok(UpdateInfo {
-//                 available: true,
-//                 current_version: update.current_version,
-//                 latest_version: update.version.clone(),
-//                 date: update.date.clone(),
-//                 body: update.body.clone(),
-//             })
-//         }
-//         Ok(None) => {
-//             let version = app_handle.package_info().version.to_string();
-//             Ok(UpdateInfo {
-//                 available: false,
-//                 current_version: version.clone(),
-//                 latest_version: version,
-//                 date: None,
-//                 body: None,
-//             })
-//         }
-//         Err(e) => Err(format!("Failed to check for updates: {}", e)),
-//     }
-// }
-// 
-// #[tauri::command]
-// pub async fn install_update(app_handle: tauri::AppHandle) -> Result<(), String> {
-//     use tauri_plugin_updater::UpdaterExt;
-//     
-//     match app_handle.updater().check().await {
-//         Ok(Some(update)) => {
-//             log::info!("Installing update: {}", update.version);
-//             
-//             let mut downloaded = 0;
-//             update
-//                 .download_and_install(
-//                     |chunk_length, content_length| {
-//                         downloaded += chunk_length;
-//                         log::debug!("Downloaded {} of {:?} bytes", downloaded, content_length);
-//                     },
-//                     || {
-//                         log::info!("Download finished, installing...");
-//                     }
-//                 )
-//                 .await
-//                 .map_err(|e| format!("Failed to install update: {}", e))?;
-//             
-//             Ok(())
-//         }
-//         Ok(None) => {
-//             Err("No update available".to_string())
-//         }
-//         Err(e) => Err(format!("Failed to check for updates: {}", e)),
-//     }
-// }
-// 
-// #[derive(serde::Serialize)]
-// pub struct UpdateInfo {
-//     pub available: bool,
-//     pub current_version: String,
-//     pub latest_version: String,
-//     pub date: Option<String>,
-//     pub body: Option<String>,
-// }
+#[derive(serde::Serialize)]
+pub struct UpdateInfo {
+    pub available: bool,
+    pub current_version: String,
+    pub latest_version: Option<String>,
+    pub notes: Option<String>,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct UpdateProgress {
+    downloaded: u64,
+    total: Option<u64>,
+}
+
+#[tauri::command]
+pub fn get_app_version(app: AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
+#[tauri::command]
+pub async fn check_update(app: AppHandle) -> Result<UpdateInfo, String> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    let update = app
+        .updater()
+        .map_err(|e| format!("Updater unavailable: {}", e))?
+        .check()
+        .await
+        .map_err(|e| format!("Failed to check for updates: {}", e))?;
+
+    Ok(UpdateInfo {
+        available: update.is_some(),
+        current_version: app.package_info().version.to_string(),
+        latest_version: update.as_ref().map(|u| u.version.clone()),
+        notes: update.and_then(|u| u.body),
+    })
+}
+
+/// On Windows the installer closes the app itself; `restart` covers the other platforms.
+#[tauri::command]
+pub async fn install_update(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    let update = app
+        .updater()
+        .map_err(|e| format!("Updater unavailable: {}", e))?
+        .check()
+        .await
+        .map_err(|e| format!("Failed to check for updates: {}", e))?
+        .ok_or_else(|| "No update available".to_string())?;
+
+    log::info!("Installing update {}", update.version);
+
+    let progress_app = app.clone();
+    let mut downloaded: u64 = 0;
+    let mut last_percent: Option<u64> = None;
+    update
+        .download_and_install(
+            move |chunk_length, content_length| {
+                downloaded += chunk_length as u64;
+                // Chunks are small, so only emit when the visible percentage changes.
+                let percent = content_length.map(|total| downloaded * 100 / total.max(1));
+                if percent.is_none() || percent != last_percent {
+                    last_percent = percent;
+                    let _ = progress_app.emit(
+                        "update-progress",
+                        UpdateProgress { downloaded, total: content_length },
+                    );
+                }
+            },
+            || log::info!("Update downloaded, installing"),
+        )
+        .await
+        .map_err(|e| format!("Failed to install update: {}", e))?;
+
+    app.restart();
+}

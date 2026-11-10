@@ -38,6 +38,14 @@
             </div>
         </header>
 
+        <div id="updateBanner" class="update-banner hidden" role="status">
+            <span id="updateBannerText">A new version is available.</span>
+            <span class="update-banner-actions">
+                <button id="bannerInstallBtn" class="btn btn-primary btn-small">Update now</button>
+                <button id="bannerDismissBtn" class="btn btn-secondary btn-small">Later</button>
+            </span>
+        </div>
+
         <div class="stats-bar">
             <span id="statsText">Loading...</span>
         </div>
@@ -153,6 +161,38 @@
                                 <label><input type="radio" name="theme" value="dark" data-setting="theme"><span>Dark</span></label>
                             </div>
                         </div>
+                    </section>
+
+                    <section class="settings-section">
+                        <h3>About</h3>
+                        <div class="about-card">
+                            <img src="logo.svg" alt="" class="about-logo">
+                            <div class="setting-text">
+                                <span class="setting-label">Clip-Vault</span>
+                                <span class="setting-desc">Version <span id="appVersion">–</span> · Clipboard manager built with Rust and Tauri</span>
+                                <a class="about-link" href="https://github.com/RobbiAbd/clip-vault" target="_blank" rel="noopener">github.com/RobbiAbd/clip-vault</a>
+                            </div>
+                        </div>
+                        <div class="setting-row">
+                            <span class="setting-text">
+                                <span class="setting-label">Updates</span>
+                                <span class="setting-desc" id="updateStatus" aria-live="polite">Check whether a newer version is available.</span>
+                            </span>
+                            <span class="update-actions">
+                                <button id="checkUpdateBtn" class="btn btn-secondary btn-small">Check for updates</button>
+                                <button id="installUpdateBtn" class="btn btn-primary btn-small hidden">Download &amp; install</button>
+                            </span>
+                        </div>
+                        <div id="updateProgress" class="update-progress hidden" role="progressbar" aria-label="Update download" aria-valuemin="0" aria-valuemax="100">
+                            <div id="updateProgressBar" class="update-progress-bar"></div>
+                        </div>
+                        <label class="setting-row">
+                            <span class="setting-text">
+                                <span class="setting-label">Check for updates on startup</span>
+                                <span class="setting-desc">Show a notice when a new version is released.</span>
+                            </span>
+                            <input type="checkbox" class="switch" data-setting="check_updates_on_startup">
+                        </label>
                     </section>
                 </div>
             </div>

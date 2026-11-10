@@ -22,6 +22,7 @@ pub struct Settings {
     pub max_history: u32,
     pub capture_images: bool,
     pub theme: Theme,
+    pub check_updates_on_startup: bool,
 }
 
 impl Default for Settings {
@@ -34,6 +35,7 @@ impl Default for Settings {
             max_history: 1000,
             capture_images: true,
             theme: Theme::System,
+            check_updates_on_startup: true,
         }
     }
 }
@@ -100,6 +102,7 @@ mod tests {
             max_history: 500,
             capture_images: false,
             theme: Theme::Dark,
+            check_updates_on_startup: false,
         };
 
         store.save(&settings).unwrap();

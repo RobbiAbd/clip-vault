@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-10
+
+### Added
+- ℹ️ **About section** in Settings showing the app version and a link to the GitHub repository
+- 🔄 **In-app updates**: "Check for updates" button with one-click download & install and a progress bar
+- 🔔 **Automatic update check on startup** with an update banner (can be turned off in Settings)
+- 🛠️ `scripts/build-release.ps1` for building signed releases locally, including `latest.json`
+
 ## [0.2.0] - 2026-11-10
 
 ### Added
