@@ -6,6 +6,10 @@ use crate::models::ClipboardEntry;
 
 mod generic_monitor;
 
+/// Windows lets only one thread hold the clipboard open. Without this, the monitor's polling
+/// can open it mid-write and the write fails with ERROR_CLIPBOARD_NOT_OPEN (1418).
+pub static CLIPBOARD_LOCK: Mutex<()> = Mutex::new(());
+
 pub trait ClipboardMonitor: Send {
     fn start(&mut self) -> Result<()>;
     fn stop(&mut self);

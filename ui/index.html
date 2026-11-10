@@ -4,12 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clip-Vault</title>
+    <script>
+        (function () {
+            var pref = localStorage.getItem('clipvault-theme') || 'system';
+            var dark = pref === 'dark' || (pref === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+            document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        })();
+    </script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="app">
         <header class="header">
-            <h1>📋 Clip-Vault</h1>
+            <h1>Clip-Vault</h1>
             <div class="search-bar">
                 <input 
                     type="text" 
@@ -24,6 +31,9 @@
                 </button>
                 <button id="clearBtn" class="btn btn-danger" title="Clear History">
                     🗑️
+                </button>
+                <button id="settingsBtn" class="btn btn-secondary" title="Settings" aria-label="Settings">
+                    ⚙️
                 </button>
             </div>
         </header>
@@ -50,6 +60,101 @@
                 <button id="copyDetailBtn" class="btn btn-primary">Copy</button>
                 <button id="pinDetailBtn" class="btn btn-secondary">Pin</button>
                 <button id="deleteDetailBtn" class="btn btn-danger">Delete</button>
+            </div>
+        </div>
+
+        <div id="settingsOverlay" class="settings-overlay hidden">
+            <div class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+                <div class="settings-header">
+                    <h2 id="settingsTitle">Settings</h2>
+                    <button id="closeSettingsBtn" class="btn btn-secondary" aria-label="Close settings">✕</button>
+                </div>
+
+                <div class="settings-body">
+                    <section class="settings-section">
+                        <h3>General</h3>
+                        <label class="setting-row">
+                            <span class="setting-text">
+                                <span class="setting-label">Launch at startup</span>
+                                <span class="setting-desc">Open Clip-Vault automatically when you sign in.</span>
+                            </span>
+                            <input type="checkbox" class="switch" data-setting="launch_at_startup">
+                        </label>
+                        <label class="setting-row">
+                            <span class="setting-text">
+                                <span class="setting-label">Start minimized</span>
+                                <span class="setting-desc">Stay in the system tray instead of opening the window.</span>
+                            </span>
+                            <input type="checkbox" class="switch" data-setting="start_minimized">
+                        </label>
+                        <label class="setting-row">
+                            <span class="setting-text">
+                                <span class="setting-label">Close to tray</span>
+                                <span class="setting-desc">Closing the window keeps clipboard monitoring running. Turn off to quit on close.</span>
+                            </span>
+                            <input type="checkbox" class="switch" data-setting="close_to_tray">
+                        </label>
+                    </section>
+
+                    <section class="settings-section">
+                        <h3>History</h3>
+                        <label class="setting-row">
+                            <span class="setting-text">
+                                <span class="setting-label">Auto-delete history</span>
+                                <span class="setting-desc">Remove clips older than this. Pinned clips are always kept.</span>
+                            </span>
+                            <select class="setting-select" data-setting="auto_delete_days" data-type="number">
+                                <option value="0">Never</option>
+                                <option value="1">After 1 day</option>
+                                <option value="7">After 7 days</option>
+                                <option value="30">After 30 days</option>
+                                <option value="90">After 90 days</option>
+                            </select>
+                        </label>
+                        <label class="setting-row">
+                            <span class="setting-text">
+                                <span class="setting-label">Maximum clips</span>
+                                <span class="setting-desc">Oldest unpinned clips are removed past this limit.</span>
+                            </span>
+                            <select class="setting-select" data-setting="max_history" data-type="number">
+                                <option value="100">100</option>
+                                <option value="500">500</option>
+                                <option value="1000">1,000</option>
+                                <option value="5000">5,000</option>
+                                <option value="0">Unlimited</option>
+                            </select>
+                        </label>
+                        <label class="setting-row">
+                            <span class="setting-text">
+                                <span class="setting-label">Capture images</span>
+                                <span class="setting-desc">Save copied images and screenshots to history.</span>
+                            </span>
+                            <input type="checkbox" class="switch" data-setting="capture_images">
+                        </label>
+                        <div class="setting-row">
+                            <span class="setting-text">
+                                <span class="setting-label">Clear history</span>
+                                <span class="setting-desc">Delete all unpinned clips now.</span>
+                            </span>
+                            <button id="settingsClearBtn" class="btn btn-danger btn-small">Clear</button>
+                        </div>
+                    </section>
+
+                    <section class="settings-section">
+                        <h3>Appearance</h3>
+                        <div class="setting-row">
+                            <span class="setting-text">
+                                <span class="setting-label">Theme</span>
+                                <span class="setting-desc">System follows your OS light/dark preference.</span>
+                            </span>
+                            <div class="segmented" role="radiogroup" aria-label="Theme">
+                                <label><input type="radio" name="theme" value="system" data-setting="theme"><span>System</span></label>
+                                <label><input type="radio" name="theme" value="light" data-setting="theme"><span>Light</span></label>
+                                <label><input type="radio" name="theme" value="dark" data-setting="theme"><span>Dark</span></label>
+                            </div>
+                        </div>
+                    </section>
+                </div>
             </div>
         </div>
     </div>

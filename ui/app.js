@@ -1,5 +1,33 @@
-const { invoke } = window.__TAURI__.tauri;
-const { listen } = window.__TAURI__.event;
+// Tauri v2 API - Proper initialization with error handling
+let invoke, listen;
+
+// Initialize Tauri APIs safely
+function initTauriAPIs() {
+    try {
+        // window.__TAURI__ requires "withGlobalTauri": true in tauri.conf.json
+        if (window.__TAURI__ && window.__TAURI__.core) {
+            invoke = window.__TAURI__.core.invoke;
+        } else if (window.__TAURI_INTERNALS__) {
+            invoke = window.__TAURI_INTERNALS__.invoke;
+        } else {
+            console.error('Tauri invoke not found');
+            throw new Error('Tauri APIs not available');
+        }
+
+        if (window.__TAURI__ && window.__TAURI__.event) {
+            listen = window.__TAURI__.event.listen;
+        } else {
+            console.error('Tauri event API not found; history will not auto-refresh');
+            listen = null;
+        }
+
+        console.log('Tauri APIs initialized successfully');
+        return true;
+    } catch (error) {
+        console.error('Failed to initialize Tauri APIs:', error);
+        return false;
+    }
+}
 
 let currentClips = [];
 let selectedClipId = null;
@@ -7,14 +35,16 @@ let searchTimeout = null;
 
 async function loadHistory() {
     try {
+        console.log('Loading history...');
         const clips = await invoke('get_history', { limit: 100, offset: 0 });
+        console.log('Loaded clips:', clips);
         currentClips = clips;
         renderClips(clips);
         await updateStats();
     } catch (error) {
         console.error('Failed to load history:', error);
         document.getElementById('clipsList').innerHTML = 
-            '<div class="empty-state">Failed to load clipboard history</div>';
+            `<div class="empty-state">Failed to load clipboard history: ${error}</div>`;
     }
 }
 
@@ -43,7 +73,9 @@ function renderClips(clips) {
                     </button>
                 </div>
             </div>
-            <div class="clip-preview">${escapeHtml(clip.preview)}</div>
+            ${clip.thumbnail
+                ? `<img class="clip-thumb" src="${clip.thumbnail}" alt="Clipboard image" loading="lazy" />`
+                : `<div class="clip-preview">${escapeHtml(clip.preview)}</div>`}
             <div class="clip-timestamp">${formatTimestamp(clip.timestamp)}</div>
         </div>
     `).join('');
@@ -110,12 +142,26 @@ function hideDetail() {
 async function copyClip(id) {
     try {
         const content = await invoke('get_entry', { id });
-        if (content && !content.startsWith('data:image')) {
+        if (!content) {
+            console.warn('No content to copy');
+            return;
+        }
+        
+        // Handle image content
+        if (content.startsWith('data:image')) {
+            await invoke('copy_image_to_clipboard', { base64Data: content });
+            console.log('✅ Image copied to clipboard');
+            showNotification('Image copied!', 'success');
+        } 
+        // Handle text content
+        else {
             await invoke('copy_to_clipboard', { content });
-            console.log('Copied to clipboard');
+            console.log('✅ Text copied to clipboard');
+            showNotification('Text copied!', 'success');
         }
     } catch (error) {
         console.error('Failed to copy:', error);
+        showNotification('Failed to copy: ' + error, 'error');
     }
 }
 
@@ -155,6 +201,113 @@ async function clearHistory() {
             console.error('Failed to clear history:', error);
         }
     }
+}
+
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.textContent = message;
+    
+    // Add to body
+    document.body.appendChild(notification);
+    
+    // Trigger animation
+    setTimeout(() => notification.classList.add('show'), 10);
+    
+    // Auto remove after 2 seconds
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 2000);
+}
+
+let currentSettings = null;
+const darkSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+function applyTheme(pref) {
+    const dark = pref === 'dark' || (pref === 'system' && darkSchemeQuery.matches);
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    localStorage.setItem('clipvault-theme', pref);
+}
+
+function renderSettings(settings) {
+    document.querySelectorAll('[data-setting]').forEach(input => {
+        const value = settings[input.dataset.setting];
+        if (input.type === 'checkbox') {
+            input.checked = Boolean(value);
+        } else if (input.type === 'radio') {
+            input.checked = input.value === value;
+        } else {
+            input.value = String(value);
+        }
+    });
+}
+
+function readSettingInput(input) {
+    if (input.type === 'checkbox') return input.checked;
+    if (input.dataset.type === 'number') return Number(input.value);
+    return input.value;
+}
+
+async function loadSettings() {
+    try {
+        currentSettings = await invoke('get_settings');
+        renderSettings(currentSettings);
+        applyTheme(currentSettings.theme);
+    } catch (error) {
+        console.error('Failed to load settings:', error);
+    }
+}
+
+async function updateSetting(key, value) {
+    const previous = currentSettings;
+    const next = { ...currentSettings, [key]: value };
+    try {
+        currentSettings = await invoke('save_settings', { settings: next });
+        if (key === 'theme') applyTheme(value);
+        showNotification('Settings saved', 'success');
+    } catch (error) {
+        console.error('Failed to save settings:', error);
+        currentSettings = previous;
+        renderSettings(previous);
+        showNotification(String(error), 'error');
+    }
+}
+
+function openSettings() {
+    if (currentSettings) renderSettings(currentSettings);
+    document.getElementById('settingsOverlay').classList.remove('hidden');
+    document.getElementById('closeSettingsBtn').focus();
+}
+
+function closeSettings() {
+    document.getElementById('settingsOverlay').classList.add('hidden');
+    document.getElementById('settingsBtn').focus();
+}
+
+function setupSettings() {
+    document.getElementById('settingsBtn').addEventListener('click', openSettings);
+    document.getElementById('closeSettingsBtn').addEventListener('click', closeSettings);
+    document.getElementById('settingsClearBtn').addEventListener('click', clearHistory);
+
+    const overlay = document.getElementById('settingsOverlay');
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeSettings();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !overlay.classList.contains('hidden')) closeSettings();
+    });
+
+    document.querySelectorAll('[data-setting]').forEach(input => {
+        input.addEventListener('change', () => {
+            updateSetting(input.dataset.setting, readSettingInput(input));
+        });
+    });
+
+    darkSchemeQuery.addEventListener('change', () => {
+        if (currentSettings && currentSettings.theme === 'system') applyTheme('system');
+    });
 }
 
 async function searchClips(query) {
@@ -213,9 +366,25 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded, initializing Tauri APIs...');
+    
+    // Initialize Tauri APIs
+    const initialized = initTauriAPIs();
+    
+    if (!initialized) {
+        document.getElementById('clipsList').innerHTML = 
+            '<div class="empty-state">Error: Failed to initialize Tauri APIs. Please restart the app.</div>';
+        return;
+    }
+    
+    // Load initial data
     loadHistory();
+    loadSettings();
+    setupSettings();
 
+    // Setup event listeners
     document.getElementById('searchInput').addEventListener('input', (e) => {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
@@ -239,8 +408,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedClipId) deleteClip(selectedClipId);
     });
 
-    listen('clipboard-update', () => {
-        console.log('Clipboard updated');
-        loadHistory();
-    });
+    // Listen for clipboard updates
+    if (listen) {
+        listen('clipboard-update', async () => {
+            await loadHistory();
+            const query = document.getElementById('searchInput').value;
+            if (query.trim()) await searchClips(query);
+        }).catch(err => console.error('Failed to listen for clipboard updates:', err));
+    }
 });

@@ -1,6 +1,5 @@
 # Rust
 /target
-Cargo.lock
 **/*.rs.bk
 *.pdb
 
@@ -37,3 +36,10 @@ Thumbs.db
 # Temporary
 tmp/
 temp/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
