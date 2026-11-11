@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-11
+
 ### Changed
 - 🪟 **Mini clipboard popup**: the global shortcut now opens a compact popup next to the cursor (like the Windows clipboard) instead of the full app. Search, pick with ↑ ↓ and press Enter or click to paste; Esc or clicking elsewhere closes it, ⤢ opens the full app
+
+### Fixed
+- Two Clip-Vault icons appeared in the system tray
 
 ## [0.3.0] - 2026-11-10
 
