@@ -38,11 +38,11 @@ pub fn setup(app: &mut App, language: Language) -> Result<()> {
         .icon(app.default_window_icon().unwrap().clone())
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-                crate::window::toggle_main(tray.app_handle(), false);
+                crate::window::toggle_main(tray.app_handle());
             }
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
-            "show" => crate::window::show_main(app, false),
+            "show" => crate::window::show_main(app),
             "quit" => app.exit(0),
             _ => {}
         })

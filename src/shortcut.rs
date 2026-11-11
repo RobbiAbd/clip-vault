@@ -6,7 +6,7 @@ pub fn plugin() -> TauriPlugin<Wry> {
     tauri_plugin_global_shortcut::Builder::new()
         .with_handler(|app, _shortcut, event| {
             if event.state() == ShortcutState::Pressed {
-                crate::window::toggle_main(app, true);
+                crate::window::toggle_popup(app);
             }
         })
         .build()

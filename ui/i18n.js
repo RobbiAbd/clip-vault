@@ -12,7 +12,8 @@ const messages = {
         'stats.loading': 'Loading...',
         'stats.count_one': '{n} clip in history',
         'stats.count': '{n} clips in history',
-        'stats.hint': '↑ ↓ to choose · Enter to paste · Esc to close',
+        'stats.hint': '↑ ↓ to choose · Enter or click to paste · Esc to close',
+        'popup.open_main': 'Open Clip-Vault',
 
         'list.loading': 'Loading clipboard history...',
         'list.empty': 'No clipboard history yet. Copy something to get started!',
@@ -60,7 +61,7 @@ const messages = {
 
         'settings.shortcut': 'Global shortcut',
         'settings.shortcut_enabled': 'Enable global shortcut',
-        'settings.shortcut_enabled_desc': 'Open Clip-Vault from any app. Pick a clip with ↑ ↓ and press Enter to paste it.',
+        'settings.shortcut_enabled_desc': 'Open the mini clipboard from any app. Pick a clip with ↑ ↓ and press Enter to paste it.',
         'settings.shortcut_key': 'Shortcut',
         'settings.shortcut_key_desc': 'Ctrl + Shift + V is also "paste as plain text" in many apps.',
 
@@ -124,7 +125,8 @@ const messages = {
 
         'stats.loading': 'Memuat...',
         'stats.count': '{n} klip di riwayat',
-        'stats.hint': '↑ ↓ untuk memilih · Enter untuk menempel · Esc untuk menutup',
+        'stats.hint': '↑ ↓ untuk memilih · Enter atau klik untuk menempel · Esc untuk menutup',
+        'popup.open_main': 'Buka Clip-Vault',
 
         'list.loading': 'Memuat riwayat clipboard...',
         'list.empty': 'Belum ada riwayat clipboard. Salin sesuatu untuk memulai!',
@@ -172,7 +174,7 @@ const messages = {
 
         'settings.shortcut': 'Shortcut global',
         'settings.shortcut_enabled': 'Aktifkan shortcut global',
-        'settings.shortcut_enabled_desc': 'Buka Clip-Vault dari aplikasi mana pun. Pilih klip dengan ↑ ↓ lalu tekan Enter untuk menempelkannya.',
+        'settings.shortcut_enabled_desc': 'Buka clipboard mini dari aplikasi mana pun. Pilih klip dengan ↑ ↓ lalu tekan Enter untuk menempelkannya.',
         'settings.shortcut_key': 'Tombol shortcut',
         'settings.shortcut_key_desc': 'Ctrl + Shift + V juga dipakai banyak aplikasi untuk "tempel sebagai teks polos".',
 
@@ -241,6 +243,19 @@ export function setLanguage(pref) {
 
 export function getLocale() {
     return locale;
+}
+
+export function formatRelativeTime(timestamp) {
+    const date = new Date(timestamp);
+    const diffSeconds = Math.round((date - new Date()) / 1000);
+    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+
+    if (diffSeconds > -60) return rtf.format(0, 'second');
+    if (diffSeconds > -3600) return rtf.format(Math.round(diffSeconds / 60), 'minute');
+    if (diffSeconds > -86400) return rtf.format(Math.round(diffSeconds / 3600), 'hour');
+    if (diffSeconds > -604800) return rtf.format(Math.round(diffSeconds / 86400), 'day');
+
+    return date.toLocaleString(locale);
 }
 
 // `{name}` placeholders are filled from `vars`; `vars.n === 1` prefers a `<key>_one` entry.

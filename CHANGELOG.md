@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- 🪟 **Mini clipboard popup**: the global shortcut now opens a compact popup next to the cursor (like the Windows clipboard) instead of the full app. Search, pick with ↑ ↓ and press Enter or click to paste; Esc or clicking elsewhere closes it, ⤢ opens the full app
+
 ## [0.3.0] - 2026-11-10
 
 ### Added

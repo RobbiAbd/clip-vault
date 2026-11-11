@@ -57,7 +57,7 @@ fn main() {
             }
 
             if !settings.start_minimized {
-                window::show_main(app.handle(), false);
+                window::show_main(app.handle());
             }
 
             let check_updates_on_startup = settings.check_updates_on_startup;
@@ -75,6 +75,7 @@ fn main() {
             });
 
             tray::setup(app, language)?;
+            window::create_popup(app)?;
 
             let app_handle = app.handle().clone();
             start_clipboard_monitor(app_handle.clone());
@@ -87,6 +88,21 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if window.label() == window::POPUP_WINDOW {
+                // Like the Windows clipboard panel: clicking elsewhere or Alt+F4 just dismisses it.
+                match event {
+                    WindowEvent::Focused(false) => {
+                        let _ = window.hide();
+                    }
+                    WindowEvent::CloseRequested { api, .. } => {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    }
+                    _ => {}
+                }
+                return;
+            }
+
             if let WindowEvent::CloseRequested { api, .. } = event {
                 let state: tauri::State<AppState> = window.state();
                 let close_to_tray = state.settings.lock().unwrap().close_to_tray;
@@ -114,7 +130,8 @@ fn main() {
             commands::check_update,
             commands::install_update,
             commands::paste_entry,
-            commands::hide_main_window,
+            commands::hide_popup,
+            commands::open_main_window,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

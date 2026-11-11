@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clip-Vault</title>
+    <script>
+        (function () {
+            var pref = localStorage.getItem('clipvault-theme') || 'system';
+            var dark = pref === 'dark' || (pref === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+            document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        })();
+    </script>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body class="popup-body">
+    <div class="popup">
+        <div class="popup-header">
+            <input
+                type="text"
+                id="popupSearch"
+                class="popup-search"
+                data-i18n-placeholder="search.placeholder"
+                autocomplete="off"
+                spellcheck="false"
+            />
+            <button id="openMainBtn" class="popup-icon-btn" data-i18n-title="popup.open_main" data-i18n-aria-label="popup.open_main">⤢</button>
+        </div>
+        <div id="popupList" class="popup-list" role="listbox"></div>
+        <div id="popupFooter" class="popup-footer" data-i18n="stats.hint"></div>
+    </div>
+
+    <script type="module" src="popup.js"></script>
+</body>
+</html>

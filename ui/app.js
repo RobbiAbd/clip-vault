@@ -1,4 +1,4 @@
-import { t, setLanguage, getLocale, applyTranslations } from './i18n.js';
+import { t, setLanguage, applyTranslations, formatRelativeTime } from './i18n.js';
 
 // Tauri v2 API - Proper initialization with error handling
 let invoke, listen;
@@ -37,8 +37,6 @@ let selectedClipId = null;
 let keyboardSelectedId = null;
 let searchTimeout = null;
 let lastClipCount = null;
-// True while the window was opened by the global shortcut: Enter pastes into the previous app.
-let pasteMode = false;
 
 async function loadHistory() {
     try {
@@ -67,7 +65,7 @@ function renderClips(clips) {
     }
 
     if (!clips.some(c => c.id === keyboardSelectedId)) {
-        keyboardSelectedId = pasteMode ? clips[0].id : null;
+        keyboardSelectedId = null;
     }
 
     container.innerHTML = clips.map(clip => `
@@ -91,7 +89,7 @@ function renderClips(clips) {
             ${clip.thumbnail
                 ? `<img class="clip-thumb" src="${clip.thumbnail}" alt="${escapeHtml(t('clip.image_alt'))}" loading="lazy" />`
                 : `<div class="clip-preview">${escapeHtml(clip.preview)}</div>`}
-            <div class="clip-timestamp">${escapeHtml(formatTimestamp(clip.timestamp))}</div>
+            <div class="clip-timestamp">${escapeHtml(formatRelativeTime(clip.timestamp))}</div>
         </div>
     `).join('');
 
@@ -103,7 +101,7 @@ function renderClips(clips) {
         });
         item.addEventListener('dblclick', (e) => {
             if (!e.target.closest('.clip-actions')) {
-                activateClip(parseInt(item.dataset.id));
+                copyClip(parseInt(item.dataset.id));
             }
         });
     });
@@ -137,19 +135,6 @@ function moveSelection(delta) {
         item.setAttribute('aria-selected', String(selected));
         if (selected) item.scrollIntoView({ block: 'nearest' });
     });
-}
-
-function activateClip(id) {
-    return pasteMode ? pasteClip(id) : copyClip(id);
-}
-
-async function pasteClip(id) {
-    try {
-        await invoke('paste_entry', { id });
-    } catch (error) {
-        console.error('Failed to paste:', error);
-        showNotification(t('notify.paste_failed', { error }), 'error');
-    }
 }
 
 async function showDetail(id) {
@@ -386,34 +371,16 @@ function setupKeyboard() {
             case 'Enter':
                 if (e.target.tagName === 'BUTTON' || keyboardSelectedId === null) return;
                 e.preventDefault();
-                activateClip(keyboardSelectedId);
+                copyClip(keyboardSelectedId);
                 break;
             case 'Escape':
-                e.preventDefault();
                 if (!document.getElementById('detailPanel').classList.contains('hidden')) {
+                    e.preventDefault();
                     hideDetail();
-                } else if (pasteMode) {
-                    invoke('hide_main_window');
                 }
                 break;
         }
     });
-
-    if (listen) {
-        listen('window-shown', (event) => {
-            pasteMode = event.payload === true;
-            document.getElementById('keyboardHint').classList.toggle('hidden', !pasteMode);
-            if (!pasteMode) return;
-
-            closeSettings({ restoreFocus: false });
-            hideDetail();
-            const search = document.getElementById('searchInput');
-            search.value = '';
-            keyboardSelectedId = null;
-            renderClips(currentClips);
-            search.focus();
-        }).catch(err => console.error('Failed to listen for window events:', err));
-    }
 }
 
 let updateInProgress = false;
@@ -577,19 +544,6 @@ function formatContentType(type) {
     const key = `type.${type}`;
     const label = t(key);
     return label === key ? type : label;
-}
-
-function formatTimestamp(timestamp) {
-    const date = new Date(timestamp);
-    const diffSeconds = Math.round((date - new Date()) / 1000);
-    const rtf = new Intl.RelativeTimeFormat(getLocale(), { numeric: 'auto' });
-
-    if (diffSeconds > -60) return rtf.format(0, 'second');
-    if (diffSeconds > -3600) return rtf.format(Math.round(diffSeconds / 60), 'minute');
-    if (diffSeconds > -86400) return rtf.format(Math.round(diffSeconds / 3600), 'hour');
-    if (diffSeconds > -604800) return rtf.format(Math.round(diffSeconds / 86400), 'day');
-
-    return date.toLocaleString(getLocale());
 }
 
 function escapeHtml(text) {

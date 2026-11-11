@@ -212,9 +212,9 @@ pub fn copy_image_to_clipboard(base64_data: String) -> Result<(), String> {
     copy_png_to_clipboard(&png_bytes)
 }
 
-/// Copies the clip and pastes it into the app that was focused before Clip-Vault opened.
+/// Copies the clip and pastes it into the app that was focused before `window` opened.
 #[tauri::command]
-pub fn paste_entry(app: AppHandle, state: State<AppState>, id: i64) -> Result<(), String> {
+pub fn paste_entry(window: tauri::WebviewWindow, state: State<AppState>, id: i64) -> Result<(), String> {
     let entry = state
         .data_store
         .lock()
@@ -224,13 +224,18 @@ pub fn paste_entry(app: AppHandle, state: State<AppState>, id: i64) -> Result<()
         .ok_or_else(|| "Clip not found".to_string())?;
 
     copy_entry_to_clipboard(&entry)?;
-    crate::window::paste_into_previous_app(&app);
+    crate::window::paste_into_previous_app(&window);
     Ok(())
 }
 
 #[tauri::command]
-pub fn hide_main_window(app: AppHandle) {
-    crate::window::hide_main(&app);
+pub fn hide_popup(app: AppHandle) {
+    crate::window::hide_popup(&app);
+}
+
+#[tauri::command]
+pub fn open_main_window(app: AppHandle) {
+    crate::window::show_main(&app);
 }
 
 fn copy_entry_to_clipboard(entry: &ClipboardEntry) -> Result<(), String> {
